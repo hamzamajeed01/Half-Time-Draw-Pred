@@ -162,9 +162,9 @@ import os
 import warnings
 warnings.filterwarnings('ignore')
 
-def split_data(df, target_col='half_time_draw', test_size=0.2, val_size=0.25, random_state=42):
+def split_data(df, target_col='half_time_draw', test_size=0.2, random_state=42):
     """
-    Split the data into training, validation, and test sets
+    Split the data into training and test sets
     
     Parameters:
     -----------
@@ -174,15 +174,13 @@ def split_data(df, target_col='half_time_draw', test_size=0.2, val_size=0.25, ra
         Name of the target column
     test_size : float
         Proportion of data to use for testing
-    val_size : float
-        Proportion of training data to use for validation
     random_state : int
         Random seed for reproducibility
         
     Returns:
     --------
     tuple
-        (X_train, X_val, X_test, y_train, y_val, y_test) - Split data
+        (X_train, X_test, y_train, y_test) - Split data
     """
     print("\n===== SPLITTING DATA =====")
     
@@ -190,29 +188,22 @@ def split_data(df, target_col='half_time_draw', test_size=0.2, val_size=0.25, ra
     X = df.drop(columns=[target_col])
     y = df[target_col]
     
-    # First split: training + validation vs test
-    X_train_val, X_test, y_train_val, y_test = train_test_split(
+    # Split data into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=random_state, stratify=y
     )
     
-    # Second split: training vs validation
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_train_val, y_train_val, test_size=val_size, random_state=random_state, stratify=y_train_val
-    )
-    
     print(f"Training set: {X_train.shape[0]} samples ({X_train.shape[0]/len(df)*100:.1f}%)")
-    print(f"Validation set: {X_val.shape[0]} samples ({X_val.shape[0]/len(df)*100:.1f}%)")
     print(f"Test set: {X_test.shape[0]} samples ({X_test.shape[0]/len(df)*100:.1f}%)")
     
     # Check class distribution in each set
     print("\nClass distribution:")
     print(f"Training set: {y_train.value_counts(normalize=True).mul(100).round(1).to_dict()}")
-    print(f"Validation set: {y_val.value_counts(normalize=True).mul(100).round(1).to_dict()}")
     print(f"Test set: {y_test.value_counts(normalize=True).mul(100).round(1).to_dict()}")
     
-    return X_train, X_val, X_test, y_train, y_val, y_test
+    return X_train, X_test, y_train, y_test
 
-def train_logistic_regression(X_train, y_train, X_val, y_val, class_weight=None):
+def train_logistic_regression(X_train, y_train, class_weight=None):
     """
     Train a logistic regression model
     
@@ -222,10 +213,6 @@ def train_logistic_regression(X_train, y_train, X_val, y_val, class_weight=None)
         Training features
     y_train : array-like
         Training target
-    X_val : array-like
-        Validation features
-    y_val : array-like
-        Validation target
     class_weight : dict or 'balanced', optional
         Class weights for imbalanced data
         
@@ -236,10 +223,10 @@ def train_logistic_regression(X_train, y_train, X_val, y_val, class_weight=None)
     """
     print("\n===== TRAINING LOGISTIC REGRESSION =====")
     
-    # Define parameter grid
+    # Define parameter grid - optimized for efficiency
     param_grid = {
-        'C': [0.01, 0.1, 1, 10, 100],
-        'penalty': ['l1', 'l2'],
+        'C': [0.1, 1, 10],
+        'penalty': ['l2'],  # Reduced to only l2 for faster training
         'solver': ['liblinear'],
         'class_weight': [None, 'balanced']
     }
@@ -248,7 +235,7 @@ def train_logistic_regression(X_train, y_train, X_val, y_val, class_weight=None)
     grid_search = GridSearchCV(
         LogisticRegression(max_iter=1000, random_state=42),
         param_grid=param_grid,
-        cv=5,
+        cv=3,  # Reduced from 5 to 3 for faster training
         scoring='f1',
         n_jobs=-1
     )
@@ -261,17 +248,12 @@ def train_logistic_regression(X_train, y_train, X_val, y_val, class_weight=None)
     # Print best parameters
     print(f"Best parameters: {grid_search.best_params_}")
     
-    # Evaluate on validation set
-    y_val_pred = best_model.predict(X_val)
-    val_accuracy = accuracy_score(y_val, y_val_pred)
-    val_f1 = f1_score(y_val, y_val_pred)
-    
-    print(f"Validation accuracy: {val_accuracy:.4f}")
-    print(f"Validation F1 score: {val_f1:.4f}")
+    # Print cross-validation results
+    print(f"Cross-validation F1 score: {grid_search.best_score_:.4f}")
     
     return best_model
 
-def train_random_forest(X_train, y_train, X_val, y_val, class_weight=None):
+def train_random_forest(X_train, y_train, class_weight=None):
     """
     Train a random forest model
     
@@ -281,10 +263,6 @@ def train_random_forest(X_train, y_train, X_val, y_val, class_weight=None):
         Training features
     y_train : array-like
         Training target
-    X_val : array-like
-        Validation features
-    y_val : array-like
-        Validation target
     class_weight : dict or 'balanced', optional
         Class weights for imbalanced data
         
@@ -295,10 +273,10 @@ def train_random_forest(X_train, y_train, X_val, y_val, class_weight=None):
     """
     print("\n===== TRAINING RANDOM FOREST =====")
     
-    # Define parameter grid
+    # Define parameter grid - reduced to speed up training
     param_grid = {
         'n_estimators': [100, 200],
-        'max_depth': [None, 10, 20],
+        'max_depth': [None, 10],
         'min_samples_split': [2, 5],
         'min_samples_leaf': [1, 2],
         'class_weight': [None, 'balanced']
@@ -308,7 +286,7 @@ def train_random_forest(X_train, y_train, X_val, y_val, class_weight=None):
     grid_search = GridSearchCV(
         RandomForestClassifier(random_state=42),
         param_grid=param_grid,
-        cv=5,
+        cv=3,  # Reduced from 5 to 3 to speed up training
         scoring='f1',
         n_jobs=-1
     )
@@ -321,40 +299,22 @@ def train_random_forest(X_train, y_train, X_val, y_val, class_weight=None):
     # Print best parameters
     print(f"Best parameters: {grid_search.best_params_}")
     
-    # Evaluate on validation set
-    y_val_pred = best_model.predict(X_val)
-    val_accuracy = accuracy_score(y_val, y_val_pred)
-    val_f1 = f1_score(y_val, y_val_pred)
+    # Print cross-validation results
+    print(f"Cross-validation F1 score: {grid_search.best_score_:.4f}")
     
-    print(f"Validation accuracy: {val_accuracy:.4f}")
-    print(f"Validation F1 score: {val_f1:.4f}")
-    
-    # Feature importance
-    feature_importances = best_model.feature_importances_
-    if hasattr(X_train, 'columns'):  # If X_train is a DataFrame
-        features = X_train.columns
-    else:  # If X_train is a numpy array
-        features = [f"Feature {i}" for i in range(X_train.shape[1])]
-    
-    # Sort feature importances in descending order
-    indices = np.argsort(feature_importances)[::-1]
-    
-    # Print the feature ranking
-    print("\nFeature ranking:")
-    for i, idx in enumerate(indices[:10]):  # Print top 10 features
-        print(f"{i+1}. {features[idx]} ({feature_importances[idx]:.4f})")
-    
-    # Plot feature importances
-    plt.figure(figsize=(10, 6))
-    plt.title("Feature Importances (Random Forest)")
-    plt.bar(range(min(10, len(indices))), feature_importances[indices[:10]], align="center")
-    plt.xticks(range(min(10, len(indices))), [features[i] for i in indices[:10]], rotation=90)
-    plt.tight_layout()
-    plt.show()
+    # Print feature importances
+    if hasattr(X_train, 'columns'):
+        feature_importances = pd.DataFrame({
+            'feature': X_train.columns,
+            'importance': best_model.feature_importances_
+        }).sort_values('importance', ascending=False)
+        
+        print("\nTop 10 feature importances:")
+        print(feature_importances.head(10))
     
     return best_model
 
-def train_gradient_boosting(X_train, y_train, X_val, y_val):
+def train_gradient_boosting(X_train, y_train):
     """
     Train a gradient boosting model
     
@@ -364,10 +324,6 @@ def train_gradient_boosting(X_train, y_train, X_val, y_val):
         Training features
     y_train : array-like
         Training target
-    X_val : array-like
-        Validation features
-    y_val : array-like
-        Validation target
         
     Returns:
     --------
@@ -376,20 +332,20 @@ def train_gradient_boosting(X_train, y_train, X_val, y_val):
     """
     print("\n===== TRAINING GRADIENT BOOSTING =====")
     
-    # Define parameter grid
+    # Define parameter grid - optimized for efficiency
     param_grid = {
         'n_estimators': [100, 200],
         'learning_rate': [0.01, 0.1],
         'max_depth': [3, 5],
         'min_samples_split': [2, 5],
-        'subsample': [0.8, 1.0]
+        'subsample': [0.8]
     }
     
     # Create and train the model with grid search
     grid_search = GridSearchCV(
         GradientBoostingClassifier(random_state=42),
         param_grid=param_grid,
-        cv=5,
+        cv=3,  # Reduced from 5 to 3 for faster training
         scoring='f1',
         n_jobs=-1
     )
@@ -402,40 +358,22 @@ def train_gradient_boosting(X_train, y_train, X_val, y_val):
     # Print best parameters
     print(f"Best parameters: {grid_search.best_params_}")
     
-    # Evaluate on validation set
-    y_val_pred = best_model.predict(X_val)
-    val_accuracy = accuracy_score(y_val, y_val_pred)
-    val_f1 = f1_score(y_val, y_val_pred)
+    # Print cross-validation results
+    print(f"Cross-validation F1 score: {grid_search.best_score_:.4f}")
     
-    print(f"Validation accuracy: {val_accuracy:.4f}")
-    print(f"Validation F1 score: {val_f1:.4f}")
-    
-    # Feature importance
-    feature_importances = best_model.feature_importances_
-    if hasattr(X_train, 'columns'):  # If X_train is a DataFrame
-        features = X_train.columns
-    else:  # If X_train is a numpy array
-        features = [f"Feature {i}" for i in range(X_train.shape[1])]
-    
-    # Sort feature importances in descending order
-    indices = np.argsort(feature_importances)[::-1]
-    
-    # Print the feature ranking
-    print("\nFeature ranking:")
-    for i, idx in enumerate(indices[:10]):  # Print top 10 features
-        print(f"{i+1}. {features[idx]} ({feature_importances[idx]:.4f})")
-    
-    # Plot feature importances
-    plt.figure(figsize=(10, 6))
-    plt.title("Feature Importances (Gradient Boosting)")
-    plt.bar(range(min(10, len(indices))), feature_importances[indices[:10]], align="center")
-    plt.xticks(range(min(10, len(indices))), [features[i] for i in indices[:10]], rotation=90)
-    plt.tight_layout()
-    plt.show()
+    # Print feature importances
+    if hasattr(X_train, 'columns'):
+        feature_importances = pd.DataFrame({
+            'feature': X_train.columns,
+            'importance': best_model.feature_importances_
+        }).sort_values('importance', ascending=False)
+        
+        print("\nTop 10 feature importances:")
+        print(feature_importances.head(10))
     
     return best_model
 
-def train_xgboost(X_train, y_train, X_val, y_val):
+def train_xgboost(X_train, y_train):
     """
     Train an XGBoost model
     
@@ -445,10 +383,6 @@ def train_xgboost(X_train, y_train, X_val, y_val):
         Training features
     y_train : array-like
         Training target
-    X_val : array-like
-        Validation features
-    y_val : array-like
-        Validation target
         
     Returns:
     --------
@@ -457,21 +391,21 @@ def train_xgboost(X_train, y_train, X_val, y_val):
     """
     print("\n===== TRAINING XGBOOST =====")
     
-    # Define parameter grid
+    # Define parameter grid - optimized for efficiency
     param_grid = {
         'n_estimators': [100, 200],
         'learning_rate': [0.01, 0.1],
         'max_depth': [3, 5],
         'min_child_weight': [1, 5],
-        'subsample': [0.8, 1.0],
-        'colsample_bytree': [0.8, 1.0]
+        'subsample': [0.8],
+        'colsample_bytree': [0.8]
     }
     
     # Create and train the model with grid search
     grid_search = GridSearchCV(
         XGBClassifier(random_state=42, eval_metric='logloss'),
         param_grid=param_grid,
-        cv=5,
+        cv=3,  # Reduced from 5 to 3 for faster training
         scoring='f1',
         n_jobs=-1
     )
@@ -484,36 +418,18 @@ def train_xgboost(X_train, y_train, X_val, y_val):
     # Print best parameters
     print(f"Best parameters: {grid_search.best_params_}")
     
-    # Evaluate on validation set
-    y_val_pred = best_model.predict(X_val)
-    val_accuracy = accuracy_score(y_val, y_val_pred)
-    val_f1 = f1_score(y_val, y_val_pred)
+    # Print cross-validation results
+    print(f"Cross-validation F1 score: {grid_search.best_score_:.4f}")
     
-    print(f"Validation accuracy: {val_accuracy:.4f}")
-    print(f"Validation F1 score: {val_f1:.4f}")
-    
-    # Feature importance
-    feature_importances = best_model.feature_importances_
-    if hasattr(X_train, 'columns'):  # If X_train is a DataFrame
-        features = X_train.columns
-    else:  # If X_train is a numpy array
-        features = [f"Feature {i}" for i in range(X_train.shape[1])]
-    
-    # Sort feature importances in descending order
-    indices = np.argsort(feature_importances)[::-1]
-    
-    # Print the feature ranking
-    print("\nFeature ranking:")
-    for i, idx in enumerate(indices[:10]):  # Print top 10 features
-        print(f"{i+1}. {features[idx]} ({feature_importances[idx]:.4f})")
-    
-    # Plot feature importances
-    plt.figure(figsize=(10, 6))
-    plt.title("Feature Importances (XGBoost)")
-    plt.bar(range(min(10, len(indices))), feature_importances[indices[:10]], align="center")
-    plt.xticks(range(min(10, len(indices))), [features[i] for i in indices[:10]], rotation=90)
-    plt.tight_layout()
-    plt.show()
+    # Print feature importances
+    if hasattr(X_train, 'columns'):
+        feature_importances = pd.DataFrame({
+            'feature': X_train.columns,
+            'importance': best_model.feature_importances_
+        }).sort_values('importance', ascending=False)
+        
+        print("\nTop 10 feature importances:")
+        print(feature_importances.head(10))
     
     return best_model
 

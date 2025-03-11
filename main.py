@@ -30,7 +30,7 @@ from model_training import (
 from util import (
     setup_environment, predict_new_match, save_results,
     plot_learning_curve, create_requirements_file, create_readme_file,
-    print_section_header, save_visualization
+    print_section_header, save_visualization, save_configuration
 )
 
 def get_user_input():
@@ -76,10 +76,6 @@ def get_user_input():
         "3": "pca"
     }.get(feature_selection_choice, "mutual_info")
     
-    # Number of features
-    n_features = input("\nHow many features would you like to select? (default: 15): ") or "15"
-    n_features = int(n_features)
-    
     # Scaling method
     print("\nWhich scaling method would you like to use?")
     print("1. Standard Scaling (mean=0, std=1)")
@@ -95,7 +91,6 @@ def get_user_input():
         "missing_strategy": missing_strategy,
         "outliers_strategy": outliers_strategy,
         "feature_selection_method": feature_selection_method,
-        "n_features": n_features,
         "scaling_method": scaling_method
     }
 
@@ -125,6 +120,13 @@ def main():
     print_section_header("STEP 2: DATA EXPLORATION")
     missing_percentage = explore_data(df)
     
+    # Now that we have loaded the data, ask for the number of features
+    print("\nAfter exploring the data, we can now determine the number of features to use.")
+    print(f"Total number of features available: {df.shape[1]}")
+    n_features = input(f"How many features would you like to select? (default: 15, max: {df.shape[1]}): ") or "15"
+    n_features = min(int(n_features), df.shape[1])
+    params["n_features"] = n_features
+    
     # Step 3: Data cleaning and preprocessing
     print_section_header("STEP 3: DATA CLEANING AND PREPROCESSING")
     
@@ -147,41 +149,53 @@ def main():
     # Step 5: Feature selection and scaling
     print_section_header("STEP 5: FEATURE SELECTION AND SCALING")
     
-    # Split data
-    X_train, X_val, X_test, y_train, y_val, y_test = split_data(df)
+    # Split data into train and test sets (80/20)
+    X_train, X_test, y_train, y_test = split_data(df)
     
     # Select features
     X_train_selected, selector = select_features(
         X_train, y_train, method=params["feature_selection_method"], k=params["n_features"]
     )
     
-    # Apply feature selection to validation and test sets
+    # Apply feature selection to test set
     if params["feature_selection_method"] == 'pca':
         # For PCA, we need to apply the same transformation
-        X_val_selected = selector.transform(X_val)
         X_test_selected = selector.transform(X_test)
     else:
         # For other methods, we can use the selector directly
-        X_val_selected = selector.transform(X_val)
         X_test_selected = selector.transform(X_test)
     
     # Scale features
-    X_train_scaled, X_val_scaled, scaler = scale_features(
-        X_train_selected, X_val_selected, method=params["scaling_method"]
+    X_train_scaled, X_test_scaled, scaler = scale_features(
+        X_train_selected, X_test_selected, method=params["scaling_method"]
     )
-    X_test_scaled = scaler.transform(X_test_selected)
     
-    # Save preprocessor
-    save_preprocessor(scaler, selector, output_dir='models')
+    # Create configuration dictionary with all parameters
+    config = {
+        "data_file": params["data_file"],
+        "missing_strategy": params["missing_strategy"],
+        "outliers_strategy": params["outliers_strategy"],
+        "feature_selection_method": params["feature_selection_method"],
+        "n_features": params["n_features"],
+        "scaling_method": params["scaling_method"],
+        "feature_names": list(X_train.columns) if hasattr(X_train, 'columns') else None,
+        "selected_features": list(X_train.columns[selector.get_support()]) if hasattr(selector, 'get_support') and hasattr(X_train, 'columns') else None,
+        "target_variable": "half_time_draw",
+        "data_shape": df.shape,
+        "timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    # Save preprocessor with configuration
+    save_preprocessor(scaler, selector, output_dir='models', config=config)
     
     # Step 6: Model training
     print_section_header("STEP 6: MODEL TRAINING")
     
     # Train models
-    logreg_model = train_logistic_regression(X_train_scaled, y_train, X_val_scaled, y_val)
-    rf_model = train_random_forest(X_train_scaled, y_train, X_val_scaled, y_val)
-    gb_model = train_gradient_boosting(X_train_scaled, y_train, X_val_scaled, y_val)
-    xgb_model = train_xgboost(X_train_scaled, y_train, X_val_scaled, y_val)
+    logreg_model = train_logistic_regression(X_train_scaled, y_train)
+    rf_model = train_random_forest(X_train_scaled, y_train)
+    gb_model = train_gradient_boosting(X_train_scaled, y_train)
+    xgb_model = train_xgboost(X_train_scaled, y_train)
     
     # Step 7: Model evaluation
     print_section_header("STEP 7: MODEL EVALUATION")
@@ -196,6 +210,10 @@ def main():
     
     # Compare models
     best_model_name = compare_models(models, X_test_scaled, y_test, save_dir='results')
+    
+    # Update configuration with best model
+    config["best_model"] = best_model_name
+    save_configuration(config, output_dir='config')
     
     # Step 8: Save models
     print_section_header("STEP 8: SAVING MODELS")
@@ -215,6 +233,7 @@ def main():
     print_section_header("PIPELINE COMPLETED")
     print(f"Best model: {best_model_name}")
     print(f"Models saved to models/")
+    print(f"Configuration saved to config/config.json")
     print(f"Visualizations saved to visualizations/")
     print(f"Results saved to results/")
     print("Thank you for using the Half-Time Draw Prediction pipeline!")

@@ -1,0 +1,3 @@
+match_id,prediction,probability,result,confidence
+0,1,0.9220258717792378,DRAW,Very High
+1,1,0.9999991807400024,DRAW,Very High

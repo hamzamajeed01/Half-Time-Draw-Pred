@@ -479,9 +479,9 @@ def scale_features(X_train, X_test, method='standard'):
     
     return X_train_scaled, X_test_scaled, scaler
 
-def save_preprocessor(scaler, selector, output_dir='models'):
+def save_preprocessor(scaler, selector, output_dir='models', config=None):
     """
-    Save the preprocessor objects
+    Save the preprocessor objects and configuration
     
     Parameters:
     -----------
@@ -491,6 +491,8 @@ def save_preprocessor(scaler, selector, output_dir='models'):
         Feature selector object
     output_dir : str
         Directory to save the preprocessor objects
+    config : dict or None
+        Additional configuration parameters to save
         
     Returns:
     --------
@@ -508,6 +510,11 @@ def save_preprocessor(scaler, selector, output_dir='models'):
     selector_path = os.path.join(output_dir, 'selector.joblib')
     joblib.dump(selector, selector_path)
     print(f"Feature selector saved to {selector_path}")
+    
+    # Save configuration if provided
+    if config is not None:
+        from util import save_configuration
+        save_configuration(config, output_dir='config')
 
 def load_preprocessor(output_dir='models'):
     """

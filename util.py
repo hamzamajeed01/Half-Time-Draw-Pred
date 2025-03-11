@@ -33,7 +33,7 @@ def setup_environment():
     
     print("Environment setup complete.")
 
-def predict_new_match(match_data, model_path, scaler_path=None, selector_path=None):
+def predict_new_match(match_data, model_path=None, scaler_path=None, selector_path=None, config_path=None):
     """
     Predict the outcome of a new match
     
@@ -41,18 +41,42 @@ def predict_new_match(match_data, model_path, scaler_path=None, selector_path=No
     -----------
     match_data : pd.DataFrame or dict
         Data for the new match
-    model_path : str
-        Path to the saved model
+    model_path : str or None
+        Path to the saved model. If None, will use the best model from config
     scaler_path : str or None
-        Path to the saved scaler
+        Path to the saved scaler. If None, will use default path
     selector_path : str or None
-        Path to the saved feature selector
+        Path to the saved feature selector. If None, will use default path
+    config_path : str or None
+        Path to the configuration file. If None, will use default path
         
     Returns:
     --------
     tuple
         (prediction, probability) - Prediction and probability of a draw
     """
+    # Load configuration if provided
+    if config_path is not None:
+        config = load_configuration(config_path)
+    else:
+        try:
+            config = load_configuration()
+        except FileNotFoundError:
+            config = None
+            print("No configuration file found. Using provided paths.")
+    
+    # Determine paths based on configuration
+    if model_path is None and config is not None and "best_model" in config:
+        best_model = config["best_model"]
+        model_path = f"models/{best_model.lower().replace(' ', '_')}.joblib"
+        print(f"Using best model from configuration: {best_model}")
+    
+    if scaler_path is None:
+        scaler_path = "models/scaler.joblib"
+    
+    if selector_path is None:
+        selector_path = "models/selector.joblib"
+    
     # Load the model
     model = joblib.load(model_path)
     
@@ -63,16 +87,16 @@ def predict_new_match(match_data, model_path, scaler_path=None, selector_path=No
     # Preprocess the data
     X = match_data.copy()
     
+    # Apply feature selection if provided
+    if selector_path is not None:
+        selector = joblib.load(selector_path)
+        if hasattr(selector, 'transform'):
+            X = selector.transform(X)
+    
     # Apply scaler if provided
     if scaler_path is not None:
         scaler = joblib.load(scaler_path)
         X = scaler.transform(X)
-    
-    # Apply feature selector if provided
-    if selector_path is not None:
-        selector = joblib.load(selector_path)
-        if isinstance(selector, SelectKBest):
-            X = selector.transform(X)
     
     # Make prediction
     prediction = model.predict(X)[0]
@@ -290,6 +314,56 @@ def print_section_header(title):
     --------
     None
     """
-    print(f"\n{'='*80}")
-    print(f"{title.center(80)}")
-    print(f"{'='*80}\n")
+    print(f"\n{'='*10} {title} {'='*10}")
+
+def save_configuration(config, output_dir='config'):
+    """
+    Save configuration parameters to a JSON file
+    
+    Parameters:
+    -----------
+    config : dict
+        Configuration parameters
+    output_dir : str
+        Directory to save the configuration file
+        
+    Returns:
+    --------
+    str
+        Path to the saved configuration file
+    """
+    import json
+    
+    # Create directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Save configuration
+    config_path = os.path.join(output_dir, 'config.json')
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=4)
+    
+    print(f"Configuration saved to {config_path}")
+    return config_path
+
+def load_configuration(config_path='config/config.json'):
+    """
+    Load configuration parameters from a JSON file
+    
+    Parameters:
+    -----------
+    config_path : str
+        Path to the configuration file
+        
+    Returns:
+    --------
+    dict
+        Configuration parameters
+    """
+    import json
+    
+    # Load configuration
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    
+    print(f"Configuration loaded from {config_path}")
+    return config
