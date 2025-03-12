@@ -38,7 +38,23 @@ def load_test_data(file_path='test.json'):
     """
     print_section_header("LOADING TEST DATA")
     
-    # Load data
+    # First, try to load the raw data to extract halftime_result
+    halftime_result = None
+    try:
+        if file_path.endswith('.json'):
+            raw_df = pd.read_json(file_path)
+            if 'halftime_result' in raw_df.columns:
+                halftime_result = raw_df['halftime_result'].copy()
+                print(f"Successfully preserved halftime_result column from raw data")
+        elif file_path.endswith('.csv'):
+            raw_df = pd.read_csv(file_path)
+            if 'halftime_result' in raw_df.columns:
+                halftime_result = raw_df['halftime_result'].copy()
+                print(f"Successfully preserved halftime_result column from raw data")
+    except Exception as e:
+        print(f"Warning: Could not load raw data to preserve halftime_result: {str(e)}")
+    
+    # Load data through the standard pipeline
     df = load_data(file_path)
     
     if df is None:
@@ -46,6 +62,11 @@ def load_test_data(file_path='test.json'):
         return None
     
     print(f"Loaded {len(df)} matches from {file_path}")
+    
+    # Save halftime_result for display purposes before it gets dropped
+    if halftime_result is None and 'halftime_result' in df.columns:
+        halftime_result = df['halftime_result'].copy()
+        print(f"Preserved halftime_result column from processed data")
     
     # Ensure all columns are numeric
     for col in df.columns:
@@ -56,6 +77,15 @@ def load_test_data(file_path='test.json'):
             except:
                 print(f"Warning: Dropping non-numeric column '{col}'")
                 df = df.drop(columns=[col])
+    
+    # Add back halftime_result for display purposes
+    if halftime_result is not None:
+        df['halftime_result_display'] = halftime_result
+        print(f"Added halftime_result_display column to dataset (length: {len(halftime_result)})")
+        # Print a sample to verify
+        print(f"Sample halftime_result values: {halftime_result.head(3).tolist()}")
+    else:
+        print(f"Warning: Could not preserve halftime_result column")
     
     return df
 
@@ -76,6 +106,12 @@ def preprocess_test_data(df, config):
         Preprocessed test data
     """
     print_section_header("PREPROCESSING TEST DATA")
+    
+    # Save halftime_result_display if it exists
+    halftime_result_display = None
+    if 'halftime_result_display' in df.columns:
+        halftime_result_display = df['halftime_result_display'].copy()
+        df = df.drop(columns=['halftime_result_display'])
     
     # Handle missing values
     df = handle_missing_values(df, strategy=config['missing_strategy'])
@@ -99,7 +135,7 @@ def preprocess_test_data(df, config):
                 df[feature] = 0
         
         # Check for extra features
-        extra_features = [f for f in df.columns if f not in required_features]
+        extra_features = [f for f in df.columns if f not in required_features and f != 'halftime_result_display']
         if extra_features:
             print(f"Warning: Found {len(extra_features)} extra features not used during training.")
             print(f"Dropping extra features: {extra_features}")
@@ -108,6 +144,10 @@ def preprocess_test_data(df, config):
         # Ensure columns are in the same order as during training
         df = df[required_features]
         print(f"Reordered columns to match training data. Final shape: {df.shape}")
+    
+    # Add back halftime_result_display
+    if halftime_result_display is not None:
+        df['halftime_result_display'] = halftime_result_display
     
     return df
 
@@ -128,6 +168,21 @@ def make_predictions(df, config_path='config/config.json'):
         DataFrame with predictions
     """
     print_section_header("MAKING PREDICTIONS")
+    
+    # Debug: Check if halftime_result_display is in the dataframe
+    print(f"Columns in dataframe before processing: {df.columns.tolist()}")
+    if 'halftime_result_display' in df.columns:
+        print(f"halftime_result_display column found with {df['halftime_result_display'].count()} non-null values")
+        print(f"Sample values: {df['halftime_result_display'].head(3).tolist()}")
+    else:
+        print("WARNING: halftime_result_display column not found in the dataframe")
+    
+    # Save halftime_result for display purposes if it exists
+    halftime_result_display = None
+    if 'halftime_result_display' in df.columns:
+        halftime_result_display = df['halftime_result_display'].copy()
+        print(f"Saved halftime_result_display with {len(halftime_result_display)} values")
+        df = df.drop(columns=['halftime_result_display'])
     
     # Load configuration
     config = load_configuration(config_path)
@@ -208,15 +263,76 @@ def make_predictions(df, config_path='config/config.json'):
     
     results['confidence'] = results['probability'].apply(get_confidence)
     
+    # Add actual result if available
+    if halftime_result_display is not None:
+        print(f"Processing halftime_result_display with {len(halftime_result_display)} values")
+        
+        # Create a function to determine if the halftime result was a draw
+        def is_draw(halftime_result):
+            try:
+                # Extract home and away goals from halftime_result
+                import re
+                match = re.search(r'\((\d+)\s*-\s*(\d+)\)', str(halftime_result))
+                if match:
+                    ht_home = int(match.group(1))
+                    ht_away = int(match.group(2))
+                    result = 'DRAW' if ht_home == ht_away else 'NO DRAW'
+                   
+                    return result
+                
+                # Pattern 2: 0-1 format (without parentheses)
+                match = re.search(r'(\d+)\s*-\s*(\d+)', str(halftime_result))
+                if match:
+                    ht_home = int(match.group(1))
+                    ht_away = int(match.group(2))
+                    result = 'DRAW' if ht_home == ht_away else 'NO DRAW'
+                    print(f"Extracted scores from pattern 2: {ht_home}-{ht_away}, Result: {result}")
+                    return result
+                
+                print(f"No match found in: {halftime_result}")
+                return 'UNKNOWN'
+            except Exception as e:
+                print(f"Error processing halftime result: {halftime_result}, Error: {str(e)}")
+                return 'UNKNOWN'
+        
+        # Process a few examples to debug
+        print("Debug: Processing a few examples:")
+        for i, val in enumerate(halftime_result_display.head(3)):
+            print(f"Example {i+1}: {val} -> {is_draw(val)}")
+        
+        # Add actual result to results DataFrame
+        results['actual_result'] = halftime_result_display.apply(is_draw)
+        print(f"Added actual results based on halftime_result_display column")
+        print(f"Actual results distribution: {results['actual_result'].value_counts().to_dict()}")
+    else:
+        print("Warning: halftime_result_display is None. Cannot add actual results.")
+    
     # Display predictions in a nice format
     print("\nPrediction Results:")
-    display_results = results[['match_id', 'result', 'probability', 'confidence']]
-    display_results = display_results.rename(columns={
-        'match_id': 'Match ID',
-        'result': 'Prediction',
-        'probability': 'Probability',
-        'confidence': 'Confidence'
-    })
+    
+    # Debug: Check if actual_result is in the results DataFrame
+    print(f"Columns in results DataFrame: {results.columns.tolist()}")
+    
+    # Include actual result in display if available
+    if 'actual_result' in results.columns:
+        print(f"actual_result column found with {results['actual_result'].count()} non-null values")
+        display_results = results[['match_id', 'result', 'actual_result', 'probability', 'confidence']]
+        display_results = display_results.rename(columns={
+            'match_id': 'Match ID',
+            'result': 'Prediction',
+            'actual_result': 'Actual Result',
+            'probability': 'Probability',
+            'confidence': 'Confidence'
+        })
+    else:
+        print("WARNING: actual_result column not found in the results DataFrame")
+        display_results = results[['match_id', 'result', 'probability', 'confidence']]
+        display_results = display_results.rename(columns={
+            'match_id': 'Match ID',
+            'result': 'Prediction',
+            'probability': 'Probability',
+            'confidence': 'Confidence'
+        })
     
     # Format probability as percentage
     display_results['Probability'] = display_results['Probability'].apply(lambda x: f"{x*100:.1f}%")
@@ -235,6 +351,15 @@ def make_predictions(df, config_path='config/config.json'):
     print(f"Total matches: {total_count}")
     print(f"Predicted draws: {draw_count} ({draw_percentage:.1f}%)")
     print(f"Predicted no draws: {total_count - draw_count} ({100 - draw_percentage:.1f}%)")
+    
+    # Add accuracy statistics if actual results are available
+    if 'actual_result' in results.columns:
+        correct_predictions = results[results['result'] == results['actual_result']].shape[0]
+        accuracy = (correct_predictions / total_count) * 100
+        print(f"\nAccuracy:")
+        print(f"Correct predictions: {correct_predictions} out of {total_count} ({accuracy:.1f}%)")
+    else:
+        print("\nNo actual results available for accuracy calculation.")
     
     return results
 
@@ -260,6 +385,14 @@ def main():
         print("Error loading test data. Exiting.")
         return
     
+    # Debug: Check if halftime_result_display is in the dataframe after loading
+    print(f"\nColumns in dataframe after loading: {df.columns.tolist()}")
+    if 'halftime_result_display' in df.columns:
+        print(f"halftime_result_display column found with {df['halftime_result_display'].count()} non-null values")
+        print(f"Sample values: {df['halftime_result_display'].head(3).tolist()}")
+    else:
+        print("WARNING: halftime_result_display column not found after loading")
+    
     # Load configuration
     config_path = 'config/config.json'
     try:
@@ -268,11 +401,36 @@ def main():
         print(f"Configuration file not found at {config_path}. Please run the training pipeline first.")
         return
     
+    # Add halftime_result_display to feature_names if it exists
+    if 'feature_names' in config and 'halftime_result_display' in df.columns:
+        # Make a copy of the original feature names
+        original_feature_names = config['feature_names'].copy()
+        # We'll restore this later
+        config['original_feature_names'] = original_feature_names
+    
     # Preprocess test data
-    df = preprocess_test_data(df, config)
+    df_processed = preprocess_test_data(df, config)
+    
+    # Debug: Check if halftime_result_display is in the dataframe after preprocessing
+    print(f"\nColumns in dataframe after preprocessing: {df_processed.columns.tolist()}")
+    if 'halftime_result_display' in df_processed.columns:
+        print(f"halftime_result_display column found with {df_processed['halftime_result_display'].count()} non-null values")
+        print(f"Sample values: {df_processed['halftime_result_display'].head(3).tolist()}")
+    else:
+        print("WARNING: halftime_result_display column not found after preprocessing")
+        
+        # If we lost the column during preprocessing, add it back
+        if 'halftime_result_display' in df.columns:
+            print("Restoring halftime_result_display column from original dataframe")
+            df_processed['halftime_result_display'] = df['halftime_result_display']
+    
+    # Restore original feature_names if we modified it
+    if 'original_feature_names' in config:
+        config['feature_names'] = config['original_feature_names']
+        del config['original_feature_names']
     
     # Make predictions
-    results = make_predictions(df, config_path)
+    results = make_predictions(df_processed, config_path)
     
     if results is None:
         print("Failed to make predictions. Please check the errors above.")
