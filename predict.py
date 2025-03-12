@@ -70,13 +70,19 @@ def load_test_data(file_path='test.json'):
     
     # Ensure all columns are numeric
     for col in df.columns:
-        if df[col].dtype == 'object':
+        if df[col].dtype == 'object' and col not in ['halftime_result', 'halftime_result_display']:
             try:
                 df[col] = pd.to_numeric(df[col])
                 print(f"Converted column '{col}' to numeric")
             except:
                 print(f"Warning: Dropping non-numeric column '{col}'")
                 df = df.drop(columns=[col])
+    
+    # Special handling for columns that might be null but should be preserved
+    columns_to_preserve = ['mge', 'diff', 'ic', 'rc', 'ro']
+    for col in columns_to_preserve:
+        if col in df.columns:
+            print(f"Preserving column '{col}' with {df[col].isnull().sum()} null values")
     
     # Add back halftime_result for display purposes
     if halftime_result is not None:
@@ -115,6 +121,20 @@ def preprocess_test_data(df, config):
     
     # Handle missing values
     df = handle_missing_values(df, strategy=config['missing_strategy'])
+    
+    # Check for null values in specific columns and replace with average values from config
+    if "column_averages" in config:
+        columns_to_check = ['mge', 'diff', 'ic', 'rc', 'ro']
+        for col in columns_to_check:
+            if col in df.columns and df[col].isnull().any():
+                if col in config["column_averages"]:
+                    avg_value = config["column_averages"][col]
+                    null_count = df[col].isnull().sum()
+                    df[col] = df[col].fillna(avg_value)
+                    print(f"Replaced {null_count} null values in '{col}' with average value from training: {avg_value:.4f}")
+                else:
+                    print(f"Warning: No average value found for '{col}' in config. Using 0 as default.")
+                    df[col] = df[col].fillna(0)
     
     # Remove target variable if it exists (we're predicting it)
     target_col = config['target_variable']
@@ -186,6 +206,19 @@ def make_predictions(df, config_path='config/config.json'):
     
     # Load configuration
     config = load_configuration(config_path)
+    
+    # Check if any of the specified columns are missing and add them with average values from config
+    if "column_averages" in config:
+        columns_to_check = ['mge', 'diff', 'ic', 'rc', 'ro']
+        for col in columns_to_check:
+            if col not in df.columns:
+                if col in config["column_averages"]:
+                    avg_value = config["column_averages"][col]
+                    df[col] = avg_value
+                    print(f"Added missing column '{col}' with average value from training: {avg_value:.4f}")
+                else:
+                    print(f"Warning: Column '{col}' is missing and no average value found in config. Adding with default value 0.")
+                    df[col] = 0
     
     # Load preprocessor
     scaler_path = 'models/scaler.joblib'

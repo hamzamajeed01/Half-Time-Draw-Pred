@@ -129,7 +129,7 @@ def detect_outliers(df, columns=None, method='iqr'):
             plt.axvline(x=upper_bound, color='r', linestyle='--', label=f'Upper bound: {upper_bound:.2f}')
             plt.title(f'Distribution of {col} with Outlier Boundaries')
             plt.legend()
-            plt.show()
+            #plt.show()
     
     return outliers_count
 
@@ -289,7 +289,7 @@ def visualize_data(df, save_dir=None):
         plt.ylabel('Count')
         if save_dir:
             save_visualization(fig, 'class_distribution.png', save_dir)
-        plt.show()
+        #plt.show()
     
     # Correlation heatmap
     fig = plt.figure(figsize=(12, 10))
@@ -302,7 +302,7 @@ def visualize_data(df, save_dir=None):
     plt.tight_layout()
     if save_dir:
         save_visualization(fig, 'correlation_heatmap.png', save_dir)
-    plt.show()
+    #plt.show()
     
     # Top correlated features with target
     if 'half_time_draw' in numerical_df.columns:
@@ -317,7 +317,7 @@ def visualize_data(df, save_dir=None):
         plt.tight_layout()
         if save_dir:
             save_visualization(fig, 'top_correlated_features.png', save_dir)
-        plt.show()
+        #plt.show()
         
         # Print top correlated features
         print(f"\nTop {n} features correlated with 'half_time_draw':")
@@ -347,7 +347,7 @@ def visualize_data(df, save_dir=None):
         plt.tight_layout()
         if save_dir:
             save_visualization(fig, 'numerical_distributions.png', save_dir)
-        plt.show()
+        #plt.show()
     
     # Scatter plots of top correlated features with target
     if 'half_time_draw' in numerical_df.columns:
@@ -365,7 +365,7 @@ def visualize_data(df, save_dir=None):
             plt.tight_layout()
             if save_dir:
                 save_visualization(fig, 'feature_boxplots.png', save_dir)
-            plt.show()
+            #plt.show()
 
 def select_features(X, y, method='mutual_info', k=10):
     """
@@ -437,7 +437,7 @@ def select_features(X, y, method='mutual_info', k=10):
         plt.title('PCA Explained Variance')
         plt.legend()
         plt.tight_layout()
-        plt.show()
+        #plt.show()
     
     else:
         raise ValueError(f"Unknown feature selection method: {method}")

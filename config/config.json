@@ -1,9 +1,9 @@
 {
     "data_file": "matches.json",
     "missing_strategy": "median",
-    "outliers_strategy": "none",
-    "feature_selection_method": "pca",
-    "n_features": 15,
+    "outliers_strategy": "cap",
+    "feature_selection_method": "anova",
+    "n_features": 25,
     "scaling_method": "standard",
     "feature_names": [
         "same_match",
@@ -35,12 +35,45 @@
         "igbo",
         "so_odds"
     ],
-    "selected_features": null,
+    "selected_features": [
+        "same_match",
+        "home_perc",
+        "home_odds",
+        "draw_perc",
+        "draw_odds",
+        "away_perc",
+        "mge",
+        "diff",
+        "goal_perc",
+        "goal_odds",
+        "ov15_perc",
+        "ov15_odds",
+        "ov25_perc",
+        "ov25_odds",
+        "un35_perc",
+        "un35_odds",
+        "ov05ht_odds",
+        "ic",
+        "rc",
+        "ro",
+        "sc",
+        "igbc",
+        "sc_odds",
+        "so",
+        "igbo"
+    ],
     "target_variable": "half_time_draw",
     "data_shape": [
         1861,
         29
     ],
-    "timestamp": "2025-03-11 14:35:35",
+    "timestamp": "2025-03-12 11:31:13",
+    "column_averages": {
+        "mge": 2.666953250940355,
+        "diff": -0.02599677592692101,
+        "ic": 383.7391187533584,
+        "rc": 0.3922622246104245,
+        "ro": 0.399785061794734
+    },
     "best_model": "Logistic Regression"
 }

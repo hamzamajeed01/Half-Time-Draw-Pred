@@ -185,6 +185,18 @@ def main():
         "timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     
+    # Calculate and store average values for specified columns
+    columns_to_store_avg = ['mge', 'diff', 'ic', 'rc', 'ro']
+    config["column_averages"] = {}
+    
+    for col in columns_to_store_avg:
+        if col in df.columns:
+            avg_value = df[col].mean()
+            config["column_averages"][col] = float(avg_value)  # Convert numpy.float64 to Python float for JSON serialization
+            print(f"Stored average value for '{col}': {avg_value:.4f}")
+        else:
+            print(f"Warning: Column '{col}' not found in the dataset. Cannot store average value.")
+    
     # Save preprocessor with configuration
     save_preprocessor(scaler, selector, output_dir='models', config=config)
     

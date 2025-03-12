@@ -492,7 +492,7 @@ def evaluate_model(model, X_test, y_test, model_name, save_dir=None):
     plt.tight_layout()
     if save_dir:
         save_visualization(fig_cm, f'confusion_matrix_{model_name.lower().replace(" ", "_")}.png', save_dir)
-    plt.show()
+    #plt.show()
     
     # Plot ROC curve
     fpr, tpr, _ = roc_curve(y_test, y_pred_proba)
@@ -510,7 +510,7 @@ def evaluate_model(model, X_test, y_test, model_name, save_dir=None):
     plt.tight_layout()
     if save_dir:
         save_visualization(fig_roc, f'roc_curve_{model_name.lower().replace(" ", "_")}.png', save_dir)
-    plt.show()
+    #plt.show()
     
     # Plot precision-recall curve
     precision_curve, recall_curve, _ = precision_recall_curve(y_test, y_pred_proba)
@@ -528,7 +528,7 @@ def evaluate_model(model, X_test, y_test, model_name, save_dir=None):
     plt.tight_layout()
     if save_dir:
         save_visualization(fig_pr, f'pr_curve_{model_name.lower().replace(" ", "_")}.png', save_dir)
-    plt.show()
+    #plt.show()
     
     # Return metrics
     return {
@@ -595,7 +595,7 @@ def compare_models(models, X_test, y_test, save_dir=None):
     plt.tight_layout()
     if save_dir:
         save_visualization(fig, 'model_comparison.png', save_dir)
-    plt.show()
+    #plt.show()
     
     # Find the best model based on F1 score
     best_model_name = comparison_df['f1'].idxmax()

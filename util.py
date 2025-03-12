@@ -211,7 +211,7 @@ def plot_learning_curve(model, X, y, cv=5, train_sizes=np.linspace(0.1, 1.0, 5),
         filename = f"learning_curve_{model_name.lower().replace(' ', '_')}.png" if model_name else "learning_curve.png"
         save_visualization(fig, filename, save_dir)
     
-    plt.show()
+    #plt.show()
 
 def create_requirements_file(output_path='requirements.txt'):
     """
